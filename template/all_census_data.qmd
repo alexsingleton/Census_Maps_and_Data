@@ -1,0 +1,30 @@
+---
+page-layout: full
+title-block-banner: false
+---
+
+The following table provides links to all Output Area level 2021 Census data for England and Wales. More information about how these data were created can be found [here](https://www.alex-singleton.com/content/blog/2022-12-04-Census-2021/), including a metadata table for the column names. If you want data and maps for a specific local authority, click on a region above.
+
+```{r echo=FALSE, message=FALSE, error=FALSE}
+
+library(tidyverse)
+library(sf)
+library(magrittr)
+library(tmap)
+library(arrow)
+library(kableExtra)
+
+census_tables <- read_csv("https://github.com/alexsingleton/Census_2021_Output_Areas/raw/main/Table_Metadata.csv",show_col_types = FALSE)
+
+census_tables %>%
+  select(Table_Name,Table_ID) %>%
+  unique() %>%
+  mutate(CSV = cell_spec("CSV", "html", link = paste0("https://github.com/alexsingleton/Census_2021_Output_Areas/blob/main/output_data/csv/",Table_ID,".csv","?raw=true"))) %>%
+  #mutate(CSV =  glue('<a href="https://github.com/alexsingleton/Census_2021_Output_Areas/blob/main/output_data/csv/{Table_ID}.csv?raw=true">CSV</a>')) %>%
+  #mutate(Parquet =  glue('<a href="https://github.com/alexsingleton/Census_2021_Output_Areas/blob/main/output_data/csv/{Table_ID}.parquet?raw=true">Parquet</a>')) %>%
+  mutate(Parquet = cell_spec("Parquet", "html", link = paste0("https://github.com/alexsingleton/Census_2021_Output_Areas/blob/main/output_data/parquet/",Table_ID,".parquet","?raw=true"))) %>%
+  kable(col.names=c("Census Table","Table ID","Download","Download"),format= "html", escape=FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),full_width = T)
+
+```
+

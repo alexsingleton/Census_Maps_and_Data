@@ -1,0 +1,276 @@
+
+```{r echo=FALSE, message=FALSE,error=FALSE}
+library(tidyverse,quietly = TRUE)
+library(sf,quietly = TRUE)
+library(magrittr,quietly = TRUE)
+library(tmap,quietly = TRUE)
+library(kableExtra,quietly = TRUE)
+library(magick,quietly = TRUE)
+```
+
+```{r echo=FALSE, message=FALSE,error=FALSE}
+#List census tables
+census_table_CSV <- list.files(pattern="*.csv")
+census_table_list <- gsub(".*_(.*)\\..*", "\\1", census_table_CSV)
+
+#Census metadata
+Census_Metadata <- read_csv("../../../../Census_Metadata.csv")
+
+#LAD boundary
+boundary_lad <- read_sf("../../../../boundary_lad.gpkg")
+
+#Get LAD code
+LAD_CD <- unique(gsub("(.*)\\.*_.*", "\\1", census_table_CSV))
+
+
+```
+
+```{r echo=FALSE, message=FALSE,error=FALSE}
+
+for (i in 1:length(census_table_list)) {
+
+OA_SF_tmp <- read_sf(paste0(LAD_CD,".gpkg")) %>%
+  st_make_valid() #Read OA
+
+OA_tab_tmp <- read_csv(paste0(census_table_CSV[i]),show_col_types = FALSE) #Read table
+
+OA_SF_tmp %<>% # Append the census table to the OA
+    left_join(OA_tab_tmp,by = c("OA21CD" = "OA")) 
+
+
+measures_to_map <- grep("_PCT", names(OA_SF_tmp), value = TRUE)
+
+tmp_boundary_lad <- boundary_lad %>%
+  filter(LAD23CD == LAD_CD) %>%
+  st_make_valid()
+
+# Boundary lad
+
+
+for (measures in measures_to_map) {
+
+   tm <- OA_SF_tmp %>%
+      tm_shape() +
+      tm_fill(measures, 
+               style = "pretty",
+              alpha = 0.8,
+              n = 5,
+              palette = viridisLite::viridis(5),
+  
+              # title of the legend
+              title = "%",
+              legend.reverse = FALSE) + 
+      tm_borders(col = "#D3D3D3", lwd = 0.5, group = NULL) + 
+      
+            tm_shape(tmp_boundary_lad) +
+      tm_borders(col = "black", lwd = 0.8) +
+      
+       tm_layout(frame = FALSE,
+                 
+                 attr.outside = TRUE,
+
+            legend.outside = TRUE,
+            legend.outside.position = "right",
+          
+            main.title = Census_Metadata %>% 
+                          filter(new_names == gsub("_PCT","",measures)) %>%
+                          select(Variable_Name) %>% 
+                          pull() %>%
+                          str_to_title() %>%
+                          strwrap( width = 100) %>%
+                          paste(collapse = "\n"),
+            main.title.position = "centre",
+            main.title.size = 0.6) +
+            
+    
+            tm_scale_bar(position=c("right", "top")) +
+    
+            tm_credits("Map created by Alex Singleton (www.alex-singleton.com); Contains OS and National Statistics data © Crown copyright and database right 2024",position = c("right", "top"))
+    
+    tmap_save(tm, paste0("./maps/",measures,".pdf"), width=1920, asp=0)
+    
+    rm(tm)
+    
+}
+}
+
+```
+
+
+## Download Census Data Tables for `r boundary_lad %>% st_drop_geometry() %>% filter(LAD23CD == LAD_CD) %>% select(LAD23NM) %>% pull()`
+
+::: {.column-margin}
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+ggplot() +
+ geom_sf(data = boundary_lad %>% filter(substr(LAD23CD, 1, 1) %in% c("W", "E")), colour = "#dbdbdb", lwd = 0) +
+  geom_sf(data = st_centroid(boundary_lad %>% filter(LAD23CD == LAD_CD)), color = "red", size = 2) +
+
+  theme(panel.background = element_blank(),
+        line = element_blank(),
+        axis.text = element_blank(),
+        axis.title = element_blank(),
+        plot.margin=unit(c(-0.20,0,0,0), "null")) +
+  coord_sf(datum=NA) 
+  ggsave("lad.png")
+
+
+```
+:::
+
+The 2021 Output Area census data for `r boundary_lad %>% st_drop_geometry() %>% filter(LAD23CD == LAD_CD) %>% select(LAD23NM) %>% pull()` can be downloaded through the links in the following table. Maps have also been created for each variable in the tables, and can be downloaded [here](#census-data-maps). However, if you want to use the census tables to create your own maps of `r boundary_lad %>% st_drop_geometry() %>% filter(LAD23CD == LAD_CD) %>% select(LAD23NM) %>% pull()`, you can download a GeoPackage file [here](`r paste0(LAD_CD,".gpkg")`).
+
+```{r echo=FALSE, message=FALSE,error=FALSE}
+
+Census_Metadata %>% 
+  filter(Table_ID %in% census_table_list) %>%
+  select(Table_Name,Table_ID) %>%
+  unique() %>%
+   mutate(Download = cell_spec("Download", "html", escape = FALSE, link = paste0(LAD_CD,"_",Table_ID,".csv"))) %>%
+  #mutate(Download =  glue('<a href="{LAD_CD}_{Table_ID}.csv">Download</a>')) %>%
+  kable(col.names=c("Census Table","Table ID","Download CSV"),format="html",escape=FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),full_width = T) %>%
+  scroll_box(height = "300px",fixed_thead = TRUE)
+
+
+
+
+
+
+```
+
+
+
+
+## Download Census Data Maps for `r boundary_lad %>% st_drop_geometry() %>% filter(LAD23CD == LAD_CD) %>% select(LAD23NM) %>% pull()`
+<div id="census-data-maps"></div>
+For each census table, basic choropleth maps have been created for the Output Areas within  `r boundary_lad %>% st_drop_geometry() %>% filter(LAD23CD == LAD_CD) %>% select(LAD23NM) %>% pull()`. These are all generated as PDF files and can be downloaded from the links below. If you are interested in the R code that was used to create the maps, there is a reproducible example [here](#make-a-map-in-r).
+
+```{r echo=FALSE,message=FALSE,error=FALSE,results='asis'}
+
+for (CT in census_table_list){
+  
+  
+  CT_Title <-  Census_Metadata %>% filter(Table_ID == CT) %>% select(Table_Name) %>% unique() %>% pull() %>% str_to_title
+
+  #cat("###",CT_Title,": ",toupper(CT),"",sep = "")
+
+  cat(htmltools::HTML(paste0("<h3>",CT_Title,": ",toupper(CT),"</h3>")),sep = "")
+  
+    
+
+
+tt <- Census_Metadata %>%
+  filter(Table_ID %in% CT) %>%
+  filter(new_names != paste0(CT,"0001")) %>%
+  select(new_names,Variable_Name) %>%
+  #mutate(Map =  glue('<a href="./maps/{new_names}_PCT.csv">Download</a>')) %>%
+  mutate(Map = cell_spec("Download", "html", escape = FALSE, link = paste0("./maps/",new_names,"_PCT.pdf"))) %>%
+  kable(col.names=c("Variable","Name","Map"),format="html",escape=FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),full_width = T) %>%
+  column_spec(1, width = "20%") %>%
+  column_spec(2, width = "60%") %>%
+  column_spec(3, width = "20%")
+
+
+if (Census_Metadata %>% filter(Table_ID %in% CT) %>% nrow() > 6){
+  
+  print(
+   tt  %>%
+  scroll_box(height = "300px", fixed_thead = TRUE)
+  )
+} else{
+  
+  print(tt)
+}
+  
+  
+
+  
+  
+}
+
+```
+
+
+## Make a Map of `r boundary_lad %>% st_drop_geometry() %>% filter(LAD23CD == LAD_CD) %>% select(LAD23NM) %>% pull()` in R
+
+The following R code can be used to generate a map for `r boundary_lad %>% st_drop_geometry() %>% filter(LAD23CD == LAD_CD) %>% select(LAD23NM) %>% pull()` using the data and boundaries found on this website. You should be able to re-create or adapt the code to make maps like those that you can download, or even make an interactive  version of the maps! In this code we refer to the boundaries and census tables generically; but remember that you can download the boundaries for `r boundary_lad %>% st_drop_geometry() %>% filter(LAD23CD == LAD_CD) %>% select(LAD23NM) %>% pull()` [here](`r paste0(LAD_CD,".gpkg")`); and for the example of mapping the "Economically Inactive", the relevant census table "Economic activity status" can be downloaded [here](`r paste0(LAD_CD,"_ts066.csv")`). <a name="make-a-map-in-r">
+
+
+```{r eval=FALSE}
+
+#Load the required packages
+library(tidyverse)
+library(sf)
+library(magrittr)
+library(tmap)
+
+# Read OA Boundaries
+OA <- st_read("OA.gpkg") 
+
+# Read in a table of census data
+Census_Table <- read_csv("census_table.csv")
+```
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+OA <- OA_SF_tmp
+Census_Table <- read_csv(paste0(LAD_CD,"_ts066.csv"))
+
+```
+```{r message=FALSE, warning=FALSE}
+# Join the census data to the boundary file
+OA %<>%
+  left_join(Census_Table,by = c("OA21CD" = "OA")) 
+
+# Create a basic choropleth map 
+my_map <- OA %>%
+    tm_shape() +
+
+    tm_fill("ts0660026_PCT", # variable to map
+             style = "pretty", # type of breaks to use for the variable
+            n = 5, # number of breaks
+            alpha = 0.8, # Transparency
+            palette = viridisLite::viridis(5), # Colour pallet
+            title = "%", # Title of the legend
+            legend.reverse = TRUE) + # legend Order
+
+    tm_borders(col = "#D3D3D3", lwd = 0.3, group = NULL) +  # OA border 
+                                                            #colour and weight
+    
+    tm_layout(frame = FALSE, # No frame around the map
+              attr.outside = TRUE, # Move the credits and scale outside the map 
+              legend.outside = TRUE, # Plot legend outside the map
+              legend.outside.position = "right", # Legend position
+              main.title = "Economically Inactive",# Map Title
+              main.title.position = "centre", # Map title position
+              main.title.size = 0.6) + # Map title size
+  
+    tm_scale_bar(position=c("right", "top")) + # Add a scale bar and position
+  
+    # Add the required credits for the data
+    tm_credits("Contains OS and National Statistics data © Crown copyright
+               and database right 2024",position = c("right", "top")) 
+    
+
+# Plots the map
+tmap_save(my_map, filename="map.png")
+
+```
+
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+#| fig-cap: "An Example Map Showing the % of People who are Economically Inactive."
+#| cap-location: margin
+
+my_map
+
+```
+
+A nice feature of tmap is that it is also incredibly easy to make a simple interactive map. 
+
+```{r message=FALSE,warning=FALSE}
+tmap_mode("view") # One line to put tmap in interactive mode
+my_map
+
+```
+
+

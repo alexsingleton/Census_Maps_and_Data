@@ -1,0 +1,17 @@
+## About this Website
+
+The purpose of this website is to make the Census 2021 Output Area data for England and Wales easier to access. The data are organised by local authority which can be explored by either selecting a region from the menu above or from the list lower down on this page. As new tables become available, these will be added over time.
+
+Each local authority page provides:
+
+-   All available census data tables with Output Area Level data as CSV files
+-   Counts and derived % scores
+-   A downloadable PDF map for each variable
+-   Some R code to make your own maps
+
+**If you are interested in Output Area census data tables for all areas in single files, these can be found [here](all_census_data.qmd).**
+
+The whole website is brought to you by the magic of [R](https://www.r-project.org/), [Quarto](https://quarto.org/), [Github](https://github.com/alexsingleton) and [open data](https://www.nomisweb.co.uk/sources/census_2021_bulk).
+
+::: {#main-listing}
+:::
